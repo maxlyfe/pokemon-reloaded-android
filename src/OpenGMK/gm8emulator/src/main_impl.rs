@@ -286,6 +286,8 @@ pub fn run_game(args: Vec<String>) -> i32 {
         result
     } {
         println!("Runtime error: {}", err);
+        #[cfg(target_os = "android")]
+        crate::android_main::log_line(&format!("Runtime error: {}", err));
         EXIT_FAILURE
     } else {
         EXIT_SUCCESS

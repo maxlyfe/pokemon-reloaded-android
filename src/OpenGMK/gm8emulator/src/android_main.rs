@@ -1466,6 +1466,8 @@ pub fn android_entry(app: AndroidApp) {
         logf(&format!("arrancando {}", game_exe.display()));
         // The emulator returning is what finishes the Activity, so how it returned - its exit code,
         // or a panic - is the answer to "why did the game kick me back to the launcher?".
+        // Put the panic message and location in the launcher-visible log, not only in logcat.
+        std::panic::set_hook(Box::new(|info| logf(&format!("panic: {}", info))));
         let outcome = std::panic::catch_unwind(|| {
             crate::run_game(vec!["gm8emulator".to_string(), game_exe.to_string_lossy().into_owned()])
         });
@@ -1683,6 +1685,12 @@ fn find_exe(dir: &Path) -> Option<PathBuf> {
         .collect::<Vec<_>>();
     found.sort();
     found.into_iter().next()
+}
+
+/// Lets the rest of the engine leave a line in the launcher-visible log (e.g. the GML runtime
+/// error that ended the game, which otherwise only reaches logcat).
+pub(crate) fn log_line(msg: &str) {
+    logf(msg);
 }
 
 fn logf(msg: &str) {
