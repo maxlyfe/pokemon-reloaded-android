@@ -32,7 +32,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libx11-dev libxcb1-dev libxcb-render0-dev libxcb-shape0-dev \
-            libxcb-xfixes0-dev libxi-dev libxrandr-dev libasound2-dev libgl-dev pkg-config
+            libxcb-xfixes0-dev libxi-dev libxrandr-dev libasound2-dev libgl-dev pkg-config \
+            cmake libpulse-dev libjack-jackd2-dev
 
       - name: Run reloadednet tests
         working-directory: src/OpenGMK
@@ -75,11 +76,19 @@ jobs:
       - name: Install Android SDK and NDK
         shell: bash
         run: |
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-            "platforms;android-37" \
-            "build-tools;37.0.0" \
-            "ndk;$NDK_VERSION"
+          # The runner's sdkmanager is too old to see android-37: update cmdline-tools first and
+          # use the newest copy (it installs beside the running one as latest-2).
+          SDKM="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses >/dev/null || true
+          "$SDKM" "cmdline-tools;latest" >/dev/null || true
+          for d in "$ANDROID_SDK_ROOT/cmdline-tools/latest-2" "$ANDROID_SDK_ROOT/cmdline-tools/latest"; do
+            if [ -x "$d/bin/sdkmanager" ]; then SDKM="$d/bin/sdkmanager"; break; fi
+          done
+          yes | "$SDKM" --licenses >/dev/null || true
+          "$SDKM" --list 2>/dev/null | grep -E "platforms;android-3[6-9]|build-tools;3[67]" || true
+          PKGS=("platforms;android-37" "build-tools;37.0.0" "ndk;$NDK_VERSION")
+          "$SDKM" "${PKGS[@]}" || "$SDKM" --channel=3 "${PKGS[@]}"
+          test -d "$ANDROID_SDK_ROOT/platforms/android-37"
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
 
