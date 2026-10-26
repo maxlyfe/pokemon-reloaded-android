@@ -20,7 +20,6 @@ use crate::{
 use std::{
     io::{ErrorKind, Read, Write},
     net::{SocketAddr, TcpListener, TcpStream},
-    path::Path,
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -50,7 +49,9 @@ static NET: Mutex<Net> =
 
 /// Maps `external_define("...reloadednet.dll", symbol, ...)` to the emulated function, if any.
 pub fn lookup(signature: &dll::ExternalSignature) -> Option<Function> {
-    let dll = Path::new(&signature.dll).file_name().and_then(|s| s.to_str()).unwrap_or(&signature.dll);
+    // The game passes a Windows path ("data\net\reloadednet.dll"); on Android `Path` does not treat
+    // '\' as a separator, so split on both by hand.
+    let dll = signature.dll.rsplit(|c| c == '/' || c == '\\').next().unwrap_or(&signature.dll);
     if !dll.eq_ignore_ascii_case("reloadednet.dll") {
         return None
     }
@@ -277,6 +278,26 @@ pub fn rn_close(_: &Game, _args: &[Value]) -> gml::Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn signature(dll: &str, symbol: &str) -> dll::ExternalSignature {
+        dll::ExternalSignature {
+            dll: dll.into(),
+            symbol: symbol.into(),
+            call_conv: dll::CallConv::Cdecl,
+            type_args: vec![],
+            type_return: dll::ValueType::Real,
+        }
+    }
+
+    /// The game defines the functions with a Windows path; it must be recognised on every platform.
+    #[test]
+    fn lookup_accepts_windows_and_unix_paths() {
+        assert!(lookup(&signature("data\\net\\reloadednet.dll", "rn_host")).is_some());
+        assert!(lookup(&signature("data/net/ReloadedNet.DLL", "rn_status")).is_some());
+        assert!(lookup(&signature("reloadednet.dll", "rn_local_ip")).is_some());
+        assert!(lookup(&signature("data\\net\\reloadednet.dll", "rn_unknown")).is_none());
+        assert!(lookup(&signature("gmfmodsimple.dll", "rn_host")).is_none());
+    }
 
     /// Two `Net`s in one process: host on loopback, peer connects, messages cross both ways.
     #[test]
