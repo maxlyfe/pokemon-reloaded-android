@@ -5,6 +5,9 @@ on:
   push:
     tags:
       - "v*"
+    # Multiplayer fork: every push to the working branch builds the APKs.
+    branches:
+      - online
 
 permissions:
   contents: read
