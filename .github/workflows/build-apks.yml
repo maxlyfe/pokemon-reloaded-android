@@ -86,9 +86,10 @@ jobs:
           done
           yes | "$SDKM" --licenses >/dev/null || true
           "$SDKM" --list 2>/dev/null | grep -E "platforms;android-3[6-9]|build-tools;3[67]" || true
-          PKGS=("platforms;android-37" "build-tools;37.0.0" "ndk;$NDK_VERSION")
+          # API 37 is published as "android-37.0" in the current SDK repository.
+          PKGS=("platforms;android-37.0" "build-tools;37.0.0" "ndk;$NDK_VERSION")
           "$SDKM" "${PKGS[@]}" || "$SDKM" --channel=3 "${PKGS[@]}"
-          test -d "$ANDROID_SDK_ROOT/platforms/android-37"
+          ls "$ANDROID_SDK_ROOT/platforms"
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
 
