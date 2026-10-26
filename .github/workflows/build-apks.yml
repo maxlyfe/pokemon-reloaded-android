@@ -15,6 +15,28 @@ env:
   RUST_VERSION: 1.99.0
 
 jobs:
+  net-tests:
+    name: reloadednet tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Informational: a desktop-only build problem must not block the APKs.
+    continue-on-error: true
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install desktop build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxcb1-dev libxcb-render0-dev libxcb-shape0-dev \
+            libxcb-xfixes0-dev libxi-dev libxrandr-dev libasound2-dev libgl-dev pkg-config
+
+      - name: Run reloadednet tests
+        working-directory: src/OpenGMK
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          cargo +"$RUST_VERSION" test -p gm8emulator --lib reloadednet
+
   build:
     name: ${{ matrix.abi }}
     runs-on: ubuntu-latest
@@ -80,6 +102,20 @@ jobs:
             done
           else
             cargo +"$RUST_VERSION" ndk -t "${{ matrix.abi }}" --platform 29 build -p gm8emulator --release
+          fi
+
+      - name: Configure release signing
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          # Fixed key from repo secrets, so every build installs over the previous one.
+          # Without the secrets the Gradle script falls back to the debug key.
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > android/release.jks
+            printf 'storeFile=release.jks\nstorePassword=%s\nkeyAlias=reloaded\nkeyPassword=%s\n' \
+              "$KEYSTORE_PASSWORD" "$KEYSTORE_PASSWORD" > android/keystore.properties
           fi
 
       - name: Build release APK

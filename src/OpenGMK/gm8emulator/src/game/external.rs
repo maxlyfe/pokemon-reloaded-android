@@ -1,5 +1,6 @@
 pub mod dll;
 mod dummy;
+mod reloadednet;
 pub mod win32;
 mod wow64;
 
@@ -55,6 +56,10 @@ impl ExternalManager {
     }
 
     fn make_call(&mut self, signature: &dll::ExternalSignature) -> Result<Call, String> {
+        // Pokémon Reloaded multiplayer: reloadednet.dll is answered in-engine on every platform.
+        if let Some(function) = reloadednet::lookup(signature) {
+            return Ok(Call::Emulated(function))
+        }
         if let Some(dummy) = self.should_dummy(&signature) {
             return Ok(Call::Dummy(dummy))
         }
