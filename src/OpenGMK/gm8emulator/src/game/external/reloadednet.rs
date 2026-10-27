@@ -97,7 +97,8 @@ impl Net {
         self.pending = None;
         self.inbuf.clear();
         self.outbuf.clear();
-        self.state = ST_ERR;
+        // The host goes back to waiting for another player; a guest stays in error until it retries.
+        self.state = if self.listener.is_some() { ST_WAIT } else { ST_ERR };
     }
 
     /// Accepts a peer, finishes a background connect, flushes and reads whatever is available.
@@ -338,14 +339,29 @@ mod tests {
             assert_eq!(got, msg);
         }
 
+        // The guest leaves: the host must go back to waiting and accept a new player.
         drop(guest);
         for _ in 0..200 {
             host.pump();
-            if host.state == ST_ERR {
+            if host.state == ST_WAIT {
                 break
             }
             thread::sleep(Duration::from_millis(5));
         }
-        assert_eq!(host.state, ST_ERR);
+        assert_eq!(host.state, ST_WAIT);
+
+        let mut second = Net { listener: None, peer: None, pending: None, state: ST_WAIT, inbuf: vec![], outbuf: vec![] };
+        let slot: PendingConnect = Arc::new(Mutex::new(None));
+        *slot.lock().unwrap() = Some(TcpStream::connect(("127.0.0.1", port)));
+        second.pending = Some(slot);
+        for _ in 0..200 {
+            host.pump();
+            second.pump();
+            if host.state == ST_CONN && second.state == ST_CONN {
+                break
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!((host.state, second.state), (ST_CONN, ST_CONN));
     }
 }
